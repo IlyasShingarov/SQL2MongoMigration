@@ -1,10 +1,13 @@
 package com.ishingarov.migrationtool.format;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.Data;
 import org.springframework.data.util.Pair;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -13,7 +16,7 @@ public class MigrationSchema {
     private Props primaryKey;
     private Map<String, Props> properties = new HashMap<>();
     private Map<String, EmbedProp> embeddedProperties = new HashMap<>();
-    private Map<String, EmbedProp> embeddedArrayProperties = new HashMap<>();
+    private Map<String, EmbedArrProp> embeddedArrayProperties = new HashMap<>();
     private Map<String, EmbeddedDoc> embeddedDocuments = new HashMap<>();
     private Map<String, Ref> references = new HashMap<>();
 
@@ -52,12 +55,19 @@ public class MigrationSchema {
                                 embeddedSchema);
                         embeddedDocuments.put(curr.getKey(), embed);
                     } else {
-                        var embed = new EmbedProp(curr.getKey(),
-                                node.get("datatype").asText(),
-                                Pair.of(node.get("source").asText(),
-                                        node.get("name").asText())
-                        );
+                        if (node.get("join").isArray()) {
+                            List<String> joins = new ArrayList<>();
+                            for (JsonNode joinTable : node.get("join")) {
+                                joins.add(joinTable.asText());
+                            }
+                            var embed = new EmbedArrProp(curr.getKey(),
+                                    node.get("datatype").asText(),
+                                    Pair.of(node.get("source").asText(),
+                                            node.get("name").asText()),
+                                    joins
+                            );
                         embeddedArrayProperties.put(curr.getKey(), embed);
+                        }
                     }
                 }
                 if (node.has("type") && node.get("type").asText().equals("reference")) {

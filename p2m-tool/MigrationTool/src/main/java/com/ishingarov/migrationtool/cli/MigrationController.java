@@ -171,11 +171,12 @@ public class MigrationController extends AbstractShellComponent {
             String columnName = selectionResult.getFirst().getSecond();
             TableMetaData nextMetadata = storage.getFullJsonSchema().get(nextTableName).getSecond();
 
-            RelationshipType referenceType = defineRelationship(currentMetadata, nextMetadata);
+//            RelationshipType referenceType = defineRelationship(currentMetadata, nextMetadata);
 
             String currentCommand = selectCommand(nextTableName);
             switch (MigrationCommands.valueOf(currentCommand)) {
                 case EMBED -> {
+                    RelationshipType referenceType = defineRelationship(currentMetadata, nextMetadata);
                     var docToEmbed = recursiveStepIn(nextMetadata, currentMetadata);
 
                     boolean leavePk = confirmation("Do you want to keep primary key?");
@@ -203,6 +204,7 @@ public class MigrationController extends AbstractShellComponent {
                     }
                 }
                 case REFERENCE -> {
+                    RelationshipType referenceType = defineRelationship(currentMetadata, nextMetadata);
                     var reference = jsonSchemaFormatter.getReferenceNode(nextMetadata, referenceType);
 
                     var props = result.get("properties");
@@ -295,11 +297,10 @@ public class MigrationController extends AbstractShellComponent {
             // Migrate that relationship
             TableMetaData nextMetadata = storage.getFullJsonSchema().get(nextTableName).getSecond();
 
-            var referenceType = defineRelationship(currentTable, nextMetadata);
-
             String chosenCommand = selectCommand(nextTableName);
             switch (MigrationCommands.valueOf(chosenCommand)) {
                 case EMBED -> {
+                    var referenceType = defineRelationship(currentTable, nextMetadata);
                     var ebedding = recursiveStepIn(nextMetadata, currentTable);
                     boolean leavePk = confirmation("Do you want to keep primary key?");
                     var cleanJson = jsonSchemaFormatter.jsonTableToEmbed(ebedding, leavePk, referenceType);
@@ -321,6 +322,7 @@ public class MigrationController extends AbstractShellComponent {
                     }
                 }
                 case REFERENCE -> {
+                    var referenceType = defineRelationship(currentTable, nextMetadata);
                     var reference = jsonSchemaFormatter.getReferenceNode(nextMetadata, referenceType);
                     if (props instanceof ObjectNode) {
                         if (selectionResult.getSecond() == ColumnKeyStatus.FK) {
