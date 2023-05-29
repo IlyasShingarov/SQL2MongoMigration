@@ -1,5 +1,6 @@
 package com.ishingarov.migrationtool.migration;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.ishingarov.migrationtool.format.*;
 import com.ishingarov.migrationtool.repository.domain.ForeignKeyMetadata;
 import com.ishingarov.migrationtool.repository.domain.TableMetaData;
@@ -13,9 +14,7 @@ import org.springframework.data.util.Pair;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -38,37 +37,6 @@ public class MigrationService {
 
         List<Map<String, Object>> topLevelSelectResult = jdbcTemplate.queryForList(completeQuery);
 
-//        for (Map<String, Object> resultRow : topLevelSelectResult) {
-//            Document doc = new Document();
-//            // Migrate primary key
-//            if (schema.getPrimaryKey() != null) {
-//                doc.put(schema.getPrimaryKey().name(), resultRow.get(schema.getPrimaryKey().name()));
-//            }
-//            // Migrate properties
-//            for (String key : schema.getProperties().keySet()) {
-//                doc.put(key, resultRow.get(key));
-//            }
-//            // Migrate embedded properties
-//            for (String key : schema.getEmbeddedProperties().keySet()) {
-//                doc.put(key, resultRow.get(key));
-//            }
-//            // Migrate embedded documents
-//            for (Map.Entry<String, EmbeddedDoc> embeddedDoc : schema.getEmbeddedDocuments().entrySet()) {
-//                // Add PropType check
-//                Object currentId = resultRow.get(getPrimaryKeyColumn(schema.getName()));
-//                var embeddedDocumnent = getDocument(embeddedDoc.getValue(), schema, currentId);
-//                doc.put(embeddedDoc.getKey(), embeddedDocumnent);
-//            }
-//            // Migrate references
-//            for (Map.Entry<String, Ref> referenceEntry : schema.getReferences().entrySet()) {
-//                Object currentId = resultRow.get(getPrimaryKeyColumn(schema.getName()));
-//                var reference = getReference(schema, referenceEntry.getValue(), currentId);
-//                doc.put(referenceEntry.getValue().name(), reference);
-//            }
-//
-//            mongoTemplate.insert(doc, schema.getName());
-//        }
-
         // Migrate primary key
         // Migrate properties
         // Migrate embedded properties
@@ -85,6 +53,11 @@ public class MigrationService {
             for (String key : schema.getEmbeddedProperties().keySet()) {
                 doc.put(key, resultRow.get(key));
             }
+            for (Map.Entry<String, EmbedArrProp> arrProp : schema.getEmbeddedArrayProperties().entrySet()) {
+                Object currentId = resultRow.get(getPrimaryKeyColumn(schema.getName()));
+                var propArray = getPropArray(schema, arrProp, currentId);
+                doc.put(arrProp.getKey(), propArray);
+            }
             for (Map.Entry<String, EmbeddedDoc> embeddedDoc : schema.getEmbeddedDocuments().entrySet()) {
                 // Add PropType check
                 Object currentId = resultRow.get(getPrimaryKeyColumn(schema.getName()));
@@ -98,6 +71,53 @@ public class MigrationService {
             }
             mongoTemplate.insert(doc, schema.getName());
         });
+    }
+
+    private List<Object> getPropArray(MigrationSchema schema, Map.Entry<String, EmbedArrProp> arrProp, Object currentId) {
+        String selectQuery = "%s.%s".formatted(arrProp.getValue().soruce().getFirst(), arrProp.getValue().soruce().getSecond());
+        var mainMeta = getMetadata(schema.getName());
+        var destMeta = getMetadata(arrProp.getValue().soruce().getFirst());
+
+        StringBuilder joinQuery = new StringBuilder();
+
+        Deque<String> queue = new ArrayDeque<>();
+        queue.add(schema.getName());
+        queue.addAll(arrProp.getValue().join());
+        queue.add(destMeta.getTableName());
+        while (queue.size() != 1) {
+            var currentMetadata = getMetadata(queue.pollFirst());
+            var nextMetadata = getMetadata(queue.peekFirst());
+
+            currentMetadata.getForeignKeyMetadata().stream()
+                    .filter(fk -> fk.fkTableName().equals(nextMetadata.getTableName()))
+                    .findAny()
+                    .ifPresent(foreignKeyMetadata -> joinQuery.append(JOIN_TEMPLATE.formatted(
+                            metadataStorage.getSchema(),
+                            nextMetadata.getTableName(),
+                            currentMetadata.getTableName(),
+                            foreignKeyMetadata.pkColumnName(),
+                            foreignKeyMetadata.fkTableName(),
+                            foreignKeyMetadata.fkColumnName()
+                    )));
+
+            currentMetadata.getExportedRelationships().stream()
+                    .filter(rel -> rel.foreignTableName().equals(nextMetadata.getTableName()))
+                    .findAny()
+                    .ifPresent(relationship -> joinQuery.append(JOIN_TEMPLATE.formatted(
+                            metadataStorage.getSchema(),
+                            nextMetadata.getTableName(),
+                            relationship.sourceTableName(),
+                            relationship.sourceColumnName(),
+                            relationship.foreignTableName(),
+                            relationship.foreignTableColumn()
+                    )));
+        }
+
+        StringBuilder whereQuery = getWhereQueryBuilder(schema, currentId);
+        String finalQuery = QUERY_TEMPLATE
+                .formatted(selectQuery, metadataStorage.getSchema(), schema.getName(), joinQuery, whereQuery);
+
+        return jdbcTemplate.queryForList(finalQuery, Object.class);
     }
 
     private Object getDocument(EmbeddedDoc embedded, MigrationSchema parent, Object id) {
@@ -122,6 +142,11 @@ public class MigrationService {
             }
             for (String key : schema.getEmbeddedProperties().keySet()) {
                 doc.put(key, resultRow.get(key));
+            }
+            for (Map.Entry<String, EmbedArrProp> arrProp : schema.getEmbeddedArrayProperties().entrySet()) {
+                Object currentId = resultRow.get(getPrimaryKeyColumn(schema.getName()));
+                var propArray = getPropArray(schema, arrProp, currentId);
+                doc.put(arrProp.getKey(), propArray);
             }
             for (Map.Entry<String, EmbeddedDoc> embeddedDoc : schema.getEmbeddedDocuments().entrySet()) {
                 Object currentId = resultRow.get(getPrimaryKeyColumn(schema.getName()));
@@ -193,11 +218,12 @@ public class MigrationService {
     }
 
     private StringBuilder getWhereQueryBuilder(MigrationSchema parent, Object id) {
+
         StringBuilder whereQuery = new StringBuilder();
         if (id instanceof String) {
             whereQuery.append(WHERE_TEMPLATE.formatted(parent.getName(), parent.getPrimaryKey().name(), "'" + id + "'"));
         } else {
-            whereQuery.append(WHERE_TEMPLATE.formatted(parent.getName(), parent.getPrimaryKey().name(), id));
+            whereQuery.append(WHERE_TEMPLATE.formatted(parent.getName(), getPrimaryKeyColumn(parent.getName()), id));
         }
         return whereQuery;
     }
@@ -251,8 +277,8 @@ public class MigrationService {
 
     private StringBuilder getSelectParameterBuilder(MigrationSchema schema) {
         StringBuilder selectTemplate = new StringBuilder();
-        if (schema.getPrimaryKey() != null) {
-            selectTemplate.append("%s.%s, ".formatted(schema.getName(), schema.getPrimaryKey().name()));
+        if (getPrimaryKeyColumn(schema.getName()) != null) {
+            selectTemplate.append("%s.%s, ".formatted(schema.getName(), getPrimaryKeyColumn(schema.getName())));
         }
         for (Props prop : schema.getProperties().values()) {
             selectTemplate.append("%s.%s, ".formatted(schema.getName(), prop.name()));

@@ -34,7 +34,7 @@ public class MetadataStorage {
 
     public void updateJsonSchema() {
         fullJsonSchema = tableNames.stream()
-                .map(name -> metadataRepository.getTableMetadata("nbo", name))
+                .map(name -> metadataRepository.getTableMetadata(schema, name))
                 .map(jsonSchemaFormatter::getTableJsonSchema)
                 .collect(Collectors.toMap(t -> t.getSecond().getTableName(), Function.identity()));
 

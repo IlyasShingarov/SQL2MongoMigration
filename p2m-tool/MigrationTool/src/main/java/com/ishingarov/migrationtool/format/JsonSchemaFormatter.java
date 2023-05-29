@@ -3,6 +3,7 @@ package com.ishingarov.migrationtool.format;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ishingarov.migrationtool.repository.domain.ColumnMetadata;
 import com.ishingarov.migrationtool.repository.domain.ExportedRelationshipMetadata;
@@ -90,16 +91,29 @@ public class JsonSchemaFormatter {
                     iterator.remove();
                 }
             }
-            if (props.size() == 1) {
-                var p  = (ObjectNode) props.elements().next();
-                p.put("type", "embedded");
-                p.put("source", table.get("__name").asText());
-                return p;
-            }
         }
+
         table.put("type", "embedded");
-//        table.remove("__name");
-//        p.put("type", "embedded");
+
+        if (props.size() == 1) {
+            var p  = (ObjectNode) props.elements().next();
+            p.put("type", "embedded");
+            if (!p.has("source")) {
+                p.put("source", table.get("__name").asText());
+            } else {
+                if (p.has("join")) {
+                    ArrayNode arr = (ArrayNode) p.get("join");
+                    arr.add(table.get("__name").asText());
+                } else {
+                    p.set("join", objectMapper.getNodeFactory().arrayNode().add(table.get("__name").asText()));
+                }
+            }
+
+            if (relationshipType == RelationshipType.ONE2MANY) {
+                return objectMapper.getNodeFactory().arrayNode().add(p);
+            }
+            return p;
+        }
 
         if (relationshipType == RelationshipType.ONE2MANY) {
             return objectMapper.getNodeFactory().arrayNode().add(table);
