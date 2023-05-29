@@ -1,0 +1,27 @@
+\documentclass{bmstu}
+
+\usepackage{adjustbox}
+\usepackage{multirow}
+\usepackage{diagbox}
+\usepackage[justification=raggedleft]{caption}
+\usepackage{tocloft}
+
+\hyphenation{документо-ориентированное}
+
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}} % for chapters
+
+\bibliography{biblio}
+
+\begin{document}
+
+\maketableofcontents
+
+\include{00-introduction}
+\include{01-main}
+\include{02-conclusion}
+
+\makebibliography
+
+% \include{09-appendix}
+
+\end{document}
