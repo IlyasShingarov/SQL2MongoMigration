@@ -19,7 +19,8 @@ public class QueryLogRepository {
                         FROM pg_stat_statements
                         WHERE query like ?
                     """;
-        Integer joinCount = jdbcTemplate.queryForObject(query, Integer.class, likestmt);
+        Integer joinCount = jdbcTemplate
+                .queryForObject(query, Integer.class, likestmt);
 
         return joinCount != null ? joinCount : 0;
     }
@@ -35,7 +36,8 @@ public class QueryLogRepository {
                     AND
                         query not like ?
                 """;
-        Integer selectCount = jdbcTemplate.queryForObject(query, Integer.class, likeSelectStmt, likeJoinStmt);
+        Integer selectCount = jdbcTemplate
+                .queryForObject(query, Integer.class, likeSelectStmt, likeJoinStmt);
 
         return selectCount != null ? selectCount : 0;
     }

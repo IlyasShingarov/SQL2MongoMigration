@@ -1,0 +1,27 @@
+"_id": {"$oid": "6476733d0391932e5df198d7"},
+"client_cards": [ {
+    "card_num": "4504589339479680",
+    "balance": {"$numberDecimal": 945015},
+    "provider": "American Express",
+    "expire_at": "10/26",
+    "card_id": {"$oid": "6476725fd6e65f5a77e01fdc"}
+}, {
+    "card_num": "348536622402117",
+    "balance": {"$numberDecimal": 944193},
+    "provider": "American Express",
+    "expire_at": "08/23",
+    "card_id": {"$oid": "6476725fd6e65f5a77e01fd7"}
+} ],
+"credit_rating": "232",
+"email": "klitkina@example.net",
+"first_name": "Октябрина",
+"id": 15,
+"last_name": "Филипповна",
+"loans": [ {
+    "id": 5922,
+    "amount": {"$numberDecimal": 97912860},
+    "start_dttm": {"$date": "2022-08-07T21:00:00.000Z"},
+    "interest_rate": {"$numberDecimal": 6},
+    "end_dttm": {"$date": "2023-08-30T21:00:00.000Z"}
+} ],
+"phone_num": "+7 189-846-93-55"

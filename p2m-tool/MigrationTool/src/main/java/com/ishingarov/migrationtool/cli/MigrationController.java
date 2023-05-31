@@ -142,6 +142,11 @@ public class MigrationController extends AbstractShellComponent {
         }
     }
 
+    @ShellMethod(key = "dump result", value = "Dump resulting schema to text file", group = "Migration")
+    public void dumpResult() {
+
+    }
+
     @SneakyThrows
     private ObjectNode migrateTable(UiTableEntry currentTableEntry) {
         TableMetaData currentMetadata = currentTableEntry.getMetaData();
@@ -173,10 +178,12 @@ public class MigrationController extends AbstractShellComponent {
 
 //            RelationshipType referenceType = defineRelationship(currentMetadata, nextMetadata);
 
+            printJoinInfo(currentMetadata, nextMetadata);
+
             String currentCommand = selectCommand(nextTableName);
             switch (MigrationCommands.valueOf(currentCommand)) {
                 case EMBED -> {
-                    RelationshipType referenceType = defineRelationship(currentMetadata, nextMetadata);
+                    RelationshipType referenceType = defineRelationship();
                     var docToEmbed = recursiveStepIn(nextMetadata, currentMetadata);
 
                     boolean leavePk = confirmation("Do you want to keep primary key?");
@@ -204,7 +211,7 @@ public class MigrationController extends AbstractShellComponent {
                     }
                 }
                 case REFERENCE -> {
-                    RelationshipType referenceType = defineRelationship(currentMetadata, nextMetadata);
+                    RelationshipType referenceType = defineRelationship();
                     var reference = jsonSchemaFormatter.getReferenceNode(nextMetadata, referenceType);
 
                     var props = result.get("properties");
@@ -296,11 +303,11 @@ public class MigrationController extends AbstractShellComponent {
 
             // Migrate that relationship
             TableMetaData nextMetadata = storage.getFullJsonSchema().get(nextTableName).getSecond();
-
+            printJoinInfo(currentTable, nextMetadata);
             String chosenCommand = selectCommand(nextTableName);
             switch (MigrationCommands.valueOf(chosenCommand)) {
                 case EMBED -> {
-                    var referenceType = defineRelationship(currentTable, nextMetadata);
+                    var referenceType = defineRelationship();
                     var ebedding = recursiveStepIn(nextMetadata, currentTable);
                     boolean leavePk = confirmation("Do you want to keep primary key?");
                     var cleanJson = jsonSchemaFormatter.jsonTableToEmbed(ebedding, leavePk, referenceType);
@@ -322,7 +329,7 @@ public class MigrationController extends AbstractShellComponent {
                     }
                 }
                 case REFERENCE -> {
-                    var referenceType = defineRelationship(currentTable, nextMetadata);
+                    var referenceType = defineRelationship();
                     var reference = jsonSchemaFormatter.getReferenceNode(nextMetadata, referenceType);
                     if (props instanceof ObjectNode) {
                         if (selectionResult.getSecond() == ColumnKeyStatus.FK) {
@@ -348,7 +355,18 @@ public class MigrationController extends AbstractShellComponent {
     }
 
 
-    private RelationshipType defineRelationship(TableMetaData currentTable, TableMetaData nextTable) {
+    private RelationshipType defineRelationship() {
+        List<SelectorItem<String>> relationshipTypeItems = Arrays.stream(RelationshipType.values())
+                .map(type -> SelectorItem.of(type.name(), type.name()))
+                .toList();
+
+        var selectedRelationshipContext = selectSingleItem(relationshipTypeItems, "Define a relationship type");
+        String selectedRelationship = selectedRelationshipContext.getValue().get();
+
+        return RelationshipType.valueOf(selectedRelationship);
+    }
+
+    private void printJoinInfo(TableMetaData currentTable, TableMetaData nextTable) {
         var selectcount = queryLogRepository.getSelectData(currentTable.getTableName());
         var joincount = queryLogRepository.getJoinData(currentTable.getTableName(), nextTable.getTableName());
         System.out.println("SELECT DATA\n");
@@ -358,15 +376,6 @@ public class MigrationController extends AbstractShellComponent {
         System.out.printf("Tables are joined %d times%n", joincount);
 
         System.out.printf("Joins occur %f\n", (Float.valueOf(joincount) / Float.valueOf(selectcount)));
-
-        List<SelectorItem<String>> relationshipTypeItems = Arrays.stream(RelationshipType.values())
-                .map(type -> SelectorItem.of(type.name(), type.name()))
-                .toList();
-
-        var selectedRelationshipContext = selectSingleItem(relationshipTypeItems, "Define a relationship type");
-        String selectedRelationship = selectedRelationshipContext.getValue().get();
-
-        return RelationshipType.valueOf(selectedRelationship);
     }
 
     /** Runs command selection menu
