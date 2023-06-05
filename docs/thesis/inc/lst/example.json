@@ -1,0 +1,17 @@
+{
+    "_id": {
+        "$oid": "5553a998e4b..."
+    },
+    "st": "x+51900+003200",
+    "ts": {
+        "$date": {"$numberlong" : "4473540..."}
+    },
+    "position": {
+        "type": "Point",
+        "coordinates": [
+            {"$numberDouble": "3.2"}, 
+            {"$numberDouble": "52.7"}
+        ]
+    },
+    // ...
+}

@@ -1,0 +1,35 @@
+{
+  "__name": "clients",
+  "properties": {
+    "id": { "name": "id", 
+            "datatype": "serial",
+            "type": "property",
+            "pk": true },
+    "first_name": { "name": "first_name",
+                    "datatype": "varchar",
+                    "type": "property" },
+    "client_cards": [ { "__name": "client_cards",
+                        "properties": {
+                        "card_id": { "source": "cards", 
+                                     "pkname": "id", 
+                                     "type": "reference" },
+                        "card_num": { "name": "card_num",
+                                      "datatype": "varchar",
+                                      "type": "property",
+                                      "pk": true },
+                        "balance": { "name": "balance", 
+                                     "datatype": "numeric",
+                                     "type": "property" } },
+                        "type": "embedded" } ],
+    "loans": [ { "__name": "loans",
+                 "properties": {
+                    "id": { "name": "id",
+                            "datatype": "serial",
+                            "type": "property",
+                            "pk": true },
+                 "amount": { "name": "amount",
+                             "datatype": "numeric",
+                             "type": "property" } },
+                 "type": "embedded" } ]
+  }
+}

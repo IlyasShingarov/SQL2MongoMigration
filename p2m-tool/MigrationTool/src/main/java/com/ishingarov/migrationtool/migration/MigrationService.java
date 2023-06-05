@@ -174,19 +174,47 @@ public class MigrationService {
         var selectArguments = "%s.%s".formatted(referenced.source(), referenced.pkName());
 
         var meta = getMetadata(parent.getName());
-        var fk = meta.getForeignKeyMetadata().stream()
+
+        var joinQueryBuilder = new StringBuilder();
+        meta.getForeignKeyMetadata().stream()
                 .filter(fkey -> fkey.pkColumnName().equals(referenced.name()))
                 .findAny()
-                .orElse(null);
+                .ifPresent(fk -> joinQueryBuilder.append(JOIN_TEMPLATE.formatted(
+                        metadataStorage.getSchema(),
+                        referenced.source(),
+                        parent.getName(),
+                        fk.pkColumnName(),
+                        referenced.source(),
+                        referenced.pkName()
+                )));
 
-        String joinQuery = JOIN_TEMPLATE.formatted(
-                metadataStorage.getSchema(),
-                referenced.source(),
-                parent.getName(),
-                fk.pkColumnName(),
-                referenced.source(),
-                referenced.pkName()
-        );
+        meta.getExportedRelationships().stream()
+                .filter(expRel -> expRel.foreignTableName().equals(referenced.source()))
+                .findAny()
+                .ifPresent(rel -> joinQueryBuilder.append(JOIN_TEMPLATE.formatted(
+                        metadataStorage.getSchema(),
+                        referenced.source(),
+                        rel.sourceTableName(),
+                        rel.sourceColumnName(),
+                        rel.foreignTableName(),
+                        rel.foreignTableColumn()
+                )));
+
+//        var fk = meta.getForeignKeyMetadata().stream()
+//                .filter(fkey -> fkey.pkColumnName().equals(referenced.name()))
+//                .findAny()
+//                .orElse(null);
+
+
+        String joinQuery = joinQueryBuilder.toString();
+//        String joinQuery = JOIN_TEMPLATE.formatted(
+//                metadataStorage.getSchema(),
+//                referenced.source(),
+//                parent.getName(),
+//                fk.pkColumnName(),
+//                referenced.source(),
+//                referenced.pkName()
+//        );
         StringBuilder whereQuery = getWhereQueryBuilder(parent, id);
 
         String query = QUERY_TEMPLATE.formatted(
@@ -208,9 +236,9 @@ public class MigrationService {
             for (Integer refId : resultSet) {
                 Query q = new Query();
                 q.addCriteria(Criteria.where(referenced.pkName()).is(refId)).fields().include("_id");
-                List<Document> result = mongoTemplate.find(q, Document.class, referenced.name());
+                List<Document> result = mongoTemplate.find(q, Document.class, referenced.source());
                 return result.stream()
-                        .map(doc -> doc.getObjectId("_key"))
+                        .map(doc -> doc.getObjectId("_id"))
                         .toList();
             }
         }

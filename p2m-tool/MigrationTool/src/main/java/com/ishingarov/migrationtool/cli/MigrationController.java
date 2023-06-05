@@ -13,6 +13,7 @@ import com.ishingarov.migrationtool.repository.domain.*;
 import com.ishingarov.migrationtool.storage.MetadataStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.jline.utils.InfoCmp;
 import org.springframework.data.util.Pair;
 import org.springframework.shell.component.ConfirmationInput;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static com.ishingarov.migrationtool.cli.domain.UiColumnEntry.*;
 
+@Slf4j
 @ShellComponent
 @RequiredArgsConstructor
 public class MigrationController extends AbstractShellComponent {
@@ -84,8 +86,12 @@ public class MigrationController extends AbstractShellComponent {
 
             String currentTable = getCurrentTableName(uiCurrentTables, migrated);
             if (currentTable.equals(ReservedCommands.RETURN.name())) break;
-
+            log.error("TIME: {}", currentTable);
+            long startTime = System.currentTimeMillis();
+            long startNano = System.nanoTime();
             ObjectNode result = migrateTable(uiCurrentTables.get(currentTable));
+            log.error("START {}: {}", currentTable, System.currentTimeMillis() - startTime);
+            log.error("NANO {}: {}", currentTable, System.nanoTime() - startNano);
             results.put(currentTable, result);
 
             migrated.replace(currentTable, true);
@@ -164,12 +170,14 @@ public class MigrationController extends AbstractShellComponent {
 
         // Run while every relationship is resolved
         while (resolvedFk.containsValue(ColumnStatus.UNRESOLVED) || resolvedExt.containsValue(ColumnStatus.UNRESOLVED)) {
+            long relSelectStart = System.currentTimeMillis();
             Pair<Pair<String, String>, ColumnKeyStatus> selectionResult = selectRelationshipToResolve(
                     currentMetadata.getForeignKeyMetadata(),
                     currentMetadata.getExportedRelationships(),
                     resolvedFk,
                     resolvedExt
             );
+            log.error("SELECT REL: {}", System.currentTimeMillis() - relSelectStart);
 
             // Unpack results
             String nextTableName = selectionResult.getFirst().getFirst();
@@ -180,10 +188,14 @@ public class MigrationController extends AbstractShellComponent {
 
             printJoinInfo(currentMetadata, nextMetadata);
 
+            long commSelectStart = System.currentTimeMillis();
             String currentCommand = selectCommand(nextTableName);
+            log.error("SELECT COMM: {}", System.currentTimeMillis() - commSelectStart);
             switch (MigrationCommands.valueOf(currentCommand)) {
                 case EMBED -> {
+                    long embedRefSelect = System.currentTimeMillis();
                     RelationshipType referenceType = defineRelationship();
+                    log.error("SELECT REL TYPE: {}", System.currentTimeMillis() - embedRefSelect);
                     var docToEmbed = recursiveStepIn(nextMetadata, currentMetadata);
 
                     boolean leavePk = confirmation("Do you want to keep primary key?");
@@ -211,7 +223,9 @@ public class MigrationController extends AbstractShellComponent {
                     }
                 }
                 case REFERENCE -> {
+                    long refRelTypeSelect = System.currentTimeMillis();
                     RelationshipType referenceType = defineRelationship();
+                    log.error("SELECT REL TYPE: {}", System.currentTimeMillis() - refRelTypeSelect);
                     var reference = jsonSchemaFormatter.getReferenceNode(nextMetadata, referenceType);
 
                     var props = result.get("properties");
@@ -294,9 +308,10 @@ public class MigrationController extends AbstractShellComponent {
                 .toList();
 
         while (resolvedFk.containsValue(ColumnStatus.UNRESOLVED) || resolvedExt.containsValue(ColumnStatus.UNRESOLVED)) {
-
+            long relSelectStart = System.currentTimeMillis();
             Pair<Pair<String, String>, ColumnKeyStatus> selectionResult =
                     selectRelationshipToResolve(fkeys, extRelationships, resolvedFk, resolvedExt);
+            log.error("SELECT REL: {}", System.currentTimeMillis() - relSelectStart);
 
             String nextTableName = selectionResult.getFirst().getFirst();
             String columnName = selectionResult.getFirst().getSecond();
@@ -304,10 +319,14 @@ public class MigrationController extends AbstractShellComponent {
             // Migrate that relationship
             TableMetaData nextMetadata = storage.getFullJsonSchema().get(nextTableName).getSecond();
             printJoinInfo(currentTable, nextMetadata);
+            long selectCommandTime = System.currentTimeMillis();
             String chosenCommand = selectCommand(nextTableName);
+            log.error("SELECT COMMAND: {}", System.currentTimeMillis() - selectCommandTime);
             switch (MigrationCommands.valueOf(chosenCommand)) {
                 case EMBED -> {
-                    var referenceType = defineRelationship();
+                    long embedRefSelect = System.currentTimeMillis();
+                    RelationshipType referenceType = defineRelationship();
+                    log.error("SELECT REL TYPE: {}", System.currentTimeMillis() - embedRefSelect);
                     var ebedding = recursiveStepIn(nextMetadata, currentTable);
                     boolean leavePk = confirmation("Do you want to keep primary key?");
                     var cleanJson = jsonSchemaFormatter.jsonTableToEmbed(ebedding, leavePk, referenceType);
@@ -329,7 +348,9 @@ public class MigrationController extends AbstractShellComponent {
                     }
                 }
                 case REFERENCE -> {
-                    var referenceType = defineRelationship();
+                    long refRelTypeSelect = System.currentTimeMillis();
+                    RelationshipType referenceType = defineRelationship();
+                    log.error("SELECT REL TYPE: {}", System.currentTimeMillis() - refRelTypeSelect);
                     var reference = jsonSchemaFormatter.getReferenceNode(nextMetadata, referenceType);
                     if (props instanceof ObjectNode) {
                         if (selectionResult.getSecond() == ColumnKeyStatus.FK) {
@@ -598,10 +619,12 @@ public class MigrationController extends AbstractShellComponent {
      * @return Yes/No
      */
     private boolean confirmation(String prompt) {
+        long start = System.currentTimeMillis();
         ConfirmationInput confirmationComponent = new ConfirmationInput(getTerminal(), prompt);
         confirmationComponent.setResourceLoader(getResourceLoader());
         confirmationComponent.setTemplateExecutor(getTemplateExecutor());
         ConfirmationInput.ConfirmationInputContext context = confirmationComponent.run(ConfirmationInput.ConfirmationInputContext.empty());
+        log.error("CONF: {}", System.currentTimeMillis() - start);
         return context.getResultValue();
     }
 
