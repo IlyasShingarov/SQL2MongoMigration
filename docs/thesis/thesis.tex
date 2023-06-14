@@ -7,10 +7,14 @@
 % \usepackage[justification=raggedleft]{caption}
 % \usepackage{tocloft}
 
+\usepackage{caption}
+\captionsetup[table]{justification=raggedleft}
+% \captionsetup[listing]{justification=raggedright}
+
 \hyphenation{документо-ориентированное}
 
 % \renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}} % for chapters
- 
+  
 \bibliography{biblio}
 
 \begin{document}
@@ -26,12 +30,14 @@
 {}
 {Мальцева Д. Ю.}
 
+\setcounter{page}{5}
+
 \include{00-essay}
 
 \maketableofcontents
 
-\include{01-definitions}
-\include{02-abbreviations}
+% \include{01-definitions}
+% \include{02-abbreviations}
  
 
 \include{03-introduction}
